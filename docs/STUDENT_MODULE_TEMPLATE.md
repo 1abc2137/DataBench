@@ -41,7 +41,7 @@ def run_acceptance(output_dir: Path) -> AcceptanceEvidence:
     ).validate()
 ```
 
-中期验收至少返回一种方法；最终验收至少返回两种不同 `algorithm` 标识的方法或实验策略。
+中期提交检查至少返回一种方法；最终提交检查至少返回两种不同 `algorithm` 标识的方法或实验策略。各检查项的含义见 `docs/ACCEPTANCE_GUIDE.md`。
 
 ## 最小算法示例
 
@@ -101,6 +101,8 @@ def test_baseline_contract():
 ```
 
 继续增加非法输入、实验保存和指标计算测试。测试数据应足够小，默认运行不触发网络下载或长时间训练。
+
+现有测试的逐项说明和本组新增测试要求见 `docs/TESTING_GUIDE.md`。
 
 ## 提交前检查
 

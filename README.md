@@ -1,6 +1,6 @@
-# DataBench Starter v0.4.0
+# DataBench Starter v0.4.1
 
-DataBench Starter 是供 8 个本科生小组并行开发的本地教学原型。v0.4.0 在稳定接口和学生任务包之上增加了阶段 3–5 的可执行验收门禁。每组在自己的模块目录中开发，不需要修改统一入口或其他小组代码。
+DataBench Starter 是供 8 个本科生小组并行开发的本地教学原型。v0.4.1 提供稳定接口、学生任务包、逐项测试说明以及开发自查和提交检查工具。每组在自己的模块目录中开发，不需要修改统一入口或其他小组代码。
 
 当前只有第 1 组缺失值检测示例已经实现；第 2 至第 8 组保留独立的可打开占位页，等待各组接入算法。
 
@@ -97,20 +97,20 @@ python -m pytest modules\table_discovery\test_table_discovery.py -q
 python -m pytest tests -q
 ```
 
-v0.4.0 的公共测试覆盖：模块清单与页面加载、旧 ID 排除、结果必填字段、字典字段、JSON 序列化、实验记录完整性、单文件与多文件加载、8 个 Streamlit 页面回归和阶段验收门禁。
+v0.4.1 的 42 个测试覆盖：模块清单与页面加载、旧 ID 排除、结果必填字段、字典字段、JSON 序列化、实验记录完整性、单文件与多文件加载、8 个 Streamlit 页面回归和验收工具。每个测试的目的和失败含义见 `docs/TESTING_GUIDE.md`。
 
-### 阶段验收
+### 开发自查与提交检查
 
 ```powershell
-# 阶段 3：周期检查，可用 --module 只检查一组
-python tools\acceptance.py --phase 3 --label weekly_check
-python tools\acceptance.py --phase 3 --module error_detection
+# 日常开发自查，可用 --module 只检查一组
+python tools\acceptance.py --profile development --label weekly_check
+python tools\acceptance.py --profile development --module error_detection
 
-# 阶段 4：全部模块的中期端到端门禁
-python tools\acceptance.py --phase 4 --label midterm
+# 中期提交：至少一种端到端可运行方法
+python tools\acceptance.py --profile midterm --module error_detection
 
-# 阶段 5：两种方法、数据集卡和最终文档门禁
-python tools\acceptance.py --phase 5 --label final
+# 最终提交：两种方法、数据集卡和完整实验说明
+python tools\acceptance.py --profile final --module error_detection
 ```
 
 命令会在 `reports/acceptance/` 同时生成 Markdown 和 JSON。存在未通过模块时返回非零退出码，适合用于 CI；🔎 项必须由研究生人工复核。完整约定见 `docs/ACCEPTANCE_GUIDE.md`。
@@ -122,7 +122,8 @@ python tools\acceptance.py --phase 5 --label final
 - `docs/MINIMUM_PLAN_TEMPLATE.md`：开始复杂算法前必须提交的最小方案。
 - `docs/DATASET_CARD_TEMPLATE.md`：数据来源、许可、字段、标签和预处理记录。
 - `docs/SUBMISSION_CHECKLIST.md`：代码、数据、结果、页面、测试和提交自查。
-- `docs/ACCEPTANCE_GUIDE.md`：阶段 3、4、5 的自动门禁、证据入口和人工复核说明。
+- `docs/TESTING_GUIDE.md`：42 个测试逐项说明、失败含义和新增测试要求。
+- `docs/ACCEPTANCE_GUIDE.md`：检查模式、自动门禁、证据入口和人工复核说明。
 - `.github/ISSUE_TEMPLATE/`：运行问题、接口变更和模块阶段提交模板。
 
 ## 提交要求

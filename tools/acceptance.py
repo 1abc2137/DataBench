@@ -37,6 +37,13 @@ README_SECTIONS = ('## 方法', '## 数据', '## 运行', '## 限制')
 NEGATIVE_TEST_WORDS = ('invalid', 'error', 'reject', 'empty', 'bad')
 PROHIBITED_SUFFIXES = ('.pem', '.key', '.p12', '.pfx')
 PLACEHOLDER_MARKERS = ('render_placeholder', '本模块尚未实现')
+PROFILES = ('development', 'midterm', 'final')
+PROFILE_LABELS = {
+    'development': '开发自查',
+    'midterm': '中期提交检查',
+    'final': '最终提交检查',
+}
+PROFILE_RANK = {profile: rank for rank, profile in enumerate(PROFILES, start=1)}
 
 
 @dataclass(frozen=True)
@@ -50,7 +57,7 @@ class Check:
 class ModuleAssessment:
     module_id: str
     label: str
-    phase: int
+    profile: str
     ready: bool
     method_count: int
     runtime_seconds: float | None
@@ -112,7 +119,9 @@ def _safe_file_check(module_dir: Path, evidence: AcceptanceEvidence | None) -> C
     return _check('文件安全与大小', not unsafe, '未发现密钥文件或超过 10 MB 的组内文件', f'需处理：{unsafe}')
 
 
-def assess_module(spec: ModuleSpec, phase: int) -> ModuleAssessment:
+def assess_module(spec: ModuleSpec, profile: str) -> ModuleAssessment:
+    if profile not in PROFILE_RANK:
+        raise ValueError(f'Unknown acceptance profile: {profile}')
     module_dir = ROOT / 'modules' / spec.module_id
     page_file = module_dir / 'page.py'
     algorithm_file = module_dir / 'algorithm.py'
@@ -162,13 +171,13 @@ def assess_module(spec: ModuleSpec, phase: int) -> ModuleAssessment:
     checks.append(_review('页面语义检查', '人工确认页面展示输入、参数、结果和可理解的错误信息'))
     checks.append(_review('数据合规检查', '人工确认数据来源、许可、标签或真值说明准确且不含敏感信息'))
 
-    if phase >= 4:
+    if PROFILE_RANK[profile] >= PROFILE_RANK['midterm']:
         has_contract = any('contract' in name.lower() for name in test_names)
         has_experiment = any('experiment' in name.lower() for name in test_names)
         checks.append(_check('中期测试覆盖', len(test_names) >= 4 and has_contract and has_experiment, '至少 4 个测试并覆盖结果合同和实验记录', '需至少 4 个测试，并包含 contract 和 experiment 测试'))
         checks.append(_check('中期方法数量', method_count >= 1, f'可运行方法数：{method_count}', '至少需要 1 种可运行基础方法'))
 
-    if phase >= 5:
+    if PROFILE_RANK[profile] >= PROFILE_RANK['final']:
         checks.append(_check('最终方法数量', method_count >= 2, f'可运行方法数：{method_count}', f'仅发现 {method_count} 种方法，最终验收至少需要 2 种'))
         checks.append(_check('数据集卡', dataset_card.is_file(), '模块数据集卡存在', '缺少 modules/<module_id>/DATASET_CARD.md'))
         final_sections = ('失败案例', '指标')
@@ -176,18 +185,19 @@ def assess_module(spec: ModuleSpec, phase: int) -> ModuleAssessment:
         checks.append(_check('最终实验说明', not missing_final, '包含指标和失败案例说明', f'README 缺少关键词：{missing_final}'))
 
     ready = not any(check.status == 'fail' for check in checks)
-    return ModuleAssessment(spec.module_id, spec.label, phase, ready, method_count, runtime, checks)
+    return ModuleAssessment(spec.module_id, spec.label, profile, ready, method_count, runtime, checks)
 
 
 def run_test_suite() -> Check:
-    completed = subprocess.run(
-        [sys.executable, '-m', 'pytest', '-q'],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        timeout=180,
-        check=False,
-    )
+    with tempfile.TemporaryDirectory(prefix='databench-pytest-', dir=ROOT) as base_temp:
+        completed = subprocess.run(
+            [sys.executable, '-m', 'pytest', '-q', '--basetemp', base_temp],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
     output = '\n'.join(part.strip() for part in (completed.stdout, completed.stderr) if part.strip())
     tail = '\n'.join(output.splitlines()[-3:]) if output else 'pytest 未产生输出'
     return Check('全量回归测试', 'pass' if completed.returncode == 0 else 'fail', tail)
@@ -200,14 +210,16 @@ def _slug(label: str) -> str:
 
 def write_report(
     assessments: Iterable[ModuleAssessment],
-    phase: int,
+    profile: str,
     output_dir: Path,
     label: str,
     suite_check: Check,
 ) -> tuple[Path, Path]:
+    if profile not in PROFILE_LABELS:
+        raise ValueError(f'Unknown acceptance profile: {profile}')
     assessments = list(assessments)
     output_dir.mkdir(parents=True, exist_ok=True)
-    stem = f'phase{phase}_{_slug(label)}'
+    stem = f'{profile}_{_slug(label)}'
     json_path = output_dir / f'{stem}.json'
     markdown_path = output_dir / f'{stem}.md'
     ready_count = sum(item.ready for item in assessments)
@@ -215,7 +227,7 @@ def write_report(
     payload = {
         'schema_version': 1,
         'generated_at': datetime.now(timezone.utc).isoformat(),
-        'phase': phase,
+        'profile': profile,
         'label': label,
         'gate_ready': gate_ready,
         'summary': {'ready': ready_count, 'total': len(assessments)},
@@ -225,7 +237,7 @@ def write_report(
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
     lines = [
-        f'# 阶段 {phase} 验收报告：{label}',
+        f'# {PROFILE_LABELS[profile]}报告：{label}',
         '',
         f'- 生成时间（UTC）：`{payload["generated_at"]}`',
         f'- 自动门禁：`{"PASS" if gate_ready else "BLOCKED"}`',
@@ -249,15 +261,15 @@ def write_report(
         '',
         '- `PASS` 表示自动检查无失败项；`BLOCKED` 表示至少一项机器检查失败。',
         '- 🔎 项需要研究生人工复核，不会被工具静默认定为通过。',
-        '- 阶段 4、5 只有全部 8 个模块通过且全量测试通过时，平台门禁才通过。',
+        '- 检查全部模块时，只有 8 个模块和全量测试都通过，整体门禁才通过。',
     ])
     markdown_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     return markdown_path, json_path
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Run DataBench phase 3/4/5 acceptance gates.')
-    parser.add_argument('--phase', type=int, choices=(3, 4, 5), required=True)
+    parser = argparse.ArgumentParser(description='Run DataBench development and submission checks.')
+    parser.add_argument('--profile', choices=PROFILES, required=True, help='Check profile: development, midterm, or final.')
     parser.add_argument('--module', choices=[spec.module_id for spec in MODULE_SPECS])
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'reports' / 'acceptance')
     parser.add_argument('--label', default='current')
@@ -267,12 +279,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    profile = args.profile
     specs = [spec for spec in MODULE_SPECS if args.module in (None, spec.module_id)]
-    assessments = [assess_module(spec, args.phase) for spec in specs]
+    assessments = [assess_module(spec, profile) for spec in specs]
     suite_check = Check('全量回归测试', 'review', '按命令参数跳过') if args.skip_tests else run_test_suite()
-    markdown, report_json = write_report(assessments, args.phase, args.output_dir, args.label, suite_check)
+    markdown, report_json = write_report(assessments, profile, args.output_dir, args.label, suite_check)
     ready = all(item.ready for item in assessments) and suite_check.status == 'pass'
-    print(f'PHASE_{args.phase}_GATE={"PASS" if ready else "BLOCKED"}')
+    print(f'CHECK_{profile.upper()}={"PASS" if ready else "BLOCKED"}')
     print(f'MARKDOWN={markdown}')
     print(f'JSON={report_json}')
     return 0 if ready else 1

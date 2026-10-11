@@ -12,7 +12,7 @@
 
 ```powershell
 python -m pytest modules\error_detection\test_error_detection.py -q
-python tools\acceptance.py --phase 3 --module error_detection
+python tools\acceptance.py --profile development --module error_detection
 python -m streamlit run app.py
 ```
 

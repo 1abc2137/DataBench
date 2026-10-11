@@ -2,7 +2,7 @@
 
 ## 发布信息
 
-学生开发包版本为 v0.4.0。压缩包名称为 `DataBench_Starter_v0.4.0_student.zip`，对应 SHA-256 文件与压缩包放在同一 `release` 目录。解压后先核对版本文件，再安装依赖和运行测试。
+学生开发包版本为 v0.4.1。压缩包名称为 `DataBench_Starter_v0.4.1_student.zip`，对应 SHA-256 文件与压缩包放在同一 `release` 目录。解压后先核对版本文件，再安装依赖和运行测试。
 
 ## 开始前必须完成
 
@@ -41,7 +41,9 @@ python -m streamlit run app.py
 7. 增加正常、异常、合同、实验保存和指标测试。
 8. 按 `docs/SUBMISSION_CHECKLIST.md` 自查后提交。
 
-每组还需提供 `acceptance.py::run_acceptance(output_dir)`，用小型样例真实运行算法并返回 `AcceptanceEvidence`。可随时运行 `python tools\acceptance.py --phase 3 --module <module_id>` 查看本组缺失项。
+每组还需提供 `acceptance.py::run_acceptance(output_dir)`，用小型样例真实运行算法并返回 `AcceptanceEvidence`。可随时运行 `python tools\acceptance.py --profile development --module <module_id>` 查看本组缺失项。
+
+`docs/TESTING_GUIDE.md` 逐项解释现有 42 个测试；`docs/ACCEPTANCE_GUIDE.md` 解释自动检查项、门禁判定和人工复核。开始开发前应先读这两份说明，避免把“测试通过”误解为“模块已经完成”。
 
 ## 问题反馈
 

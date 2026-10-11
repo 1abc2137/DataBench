@@ -35,6 +35,7 @@ DOCUMENTS = (
     'docs/STUDENT_RELEASE_GUIDE.md',
     f'docs/STUDENT_RELEASE_NOTES_v{VERSION}.md',
     'docs/SUBMISSION_CHECKLIST.md',
+    'docs/TESTING_GUIDE.md',
 )
 
 
