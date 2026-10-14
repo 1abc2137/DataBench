@@ -139,6 +139,7 @@ python tools\acceptance.py --profile final --module error_detection
 ## 学生开发材料
 
 - `docs/STUDENT_RELEASE_GUIDE.md`：开发包安装、文件所有权、开发顺序和验收底线。
+- `docs/STUDENT_GIT_WORKFLOW.md`：学生 Fork、分支开发、提交 PR、处理审核和合并后的完整流程。
 - `docs/tasks/README.md`：8 组任务总览及独立任务书索引。
 - `docs/MINIMUM_PLAN_TEMPLATE.md`：开始复杂算法前必须提交的最小方案。
 - `docs/DATASET_CARD_TEMPLATE.md`：数据来源、许可、字段、标签和预处理记录。
