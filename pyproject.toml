@@ -1,0 +1,22 @@
+[project]
+name = "databench-starter"
+version = "0.5.0"
+description = "Unified Streamlit teaching platform for data management algorithms"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "pandas>=2.0,<3",
+    "streamlit>=1.32,<2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7,<10",
+]
+
+[tool.uv]
+package = false
+cache-dir = ".uv-cache"
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "modules"]

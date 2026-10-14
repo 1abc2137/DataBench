@@ -15,8 +15,8 @@
 ## 复现命令
 
 ```text
-python -m pytest -q
-python -m streamlit run app.py
+uv run python -m pytest -q
+uv run python -m streamlit run app.py
 ```
 
 ## 验证结果

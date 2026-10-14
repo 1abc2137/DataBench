@@ -5,24 +5,34 @@ import pytest
 
 from core.base import AlgorithmResult
 from core.datasets import load_csv
+from core.executor import execute_algorithm
 from core.experiment import save_experiment
-from modules.error_detection import detect_missing
 
 SAMPLE = Path(__file__).resolve().parents[1] / 'datasets/samples/errors_demo.csv'
 
 
-def test_csv_and_baseline():
+def test_csv_and_baseline(tmp_path):
     df = load_csv(SAMPLE)
     assert len(df) == 4
     assert '__row_id' in df.columns
-    result = detect_missing(df)
+    result = execute_algorithm(
+        'error_detection',
+        'missing_value_baseline',
+        {'dataset_path': SAMPLE},
+        workspace_root=tmp_path,
+    )
     assert result.task_type == 'error_detection'
     assert len(result.predictions) == 2
     assert {(x['row_id'], x['column']) for x in result.predictions} == {('1', 'city'), ('2', 'age')}
 
 
 def test_experiment_record(tmp_path):
-    result = detect_missing(load_csv(SAMPLE))
+    result = execute_algorithm(
+        'error_detection',
+        'missing_value_baseline',
+        {'dataset_path': SAMPLE},
+        workspace_root=tmp_path / 'runs',
+    )
     path = save_experiment(
         result,
         'errors_demo_v1',

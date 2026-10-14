@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.acceptance import AcceptanceEvidence  # noqa: E402
+from core.algorithm_registry import list_algorithms  # noqa: E402
 from core.registry import MODULE_SPECS, ModuleSpec  # noqa: E402
 
 
@@ -107,7 +108,11 @@ def _experiment_checks(evidence: AcceptanceEvidence) -> list[Check]:
 
 
 def _safe_file_check(module_dir: Path, evidence: AcceptanceEvidence | None) -> Check:
-    candidates = [path for path in module_dir.rglob('*') if path.is_file() and '__pycache__' not in path.parts]
+    ignored = {'__pycache__', '.venv', '.algorithm_envs', 'runs'}
+    candidates = [
+        path for path in module_dir.rglob('*')
+        if path.is_file() and not any(part in ignored for part in path.parts)
+    ]
     if evidence:
         candidates.extend(evidence.sample_files)
     unsafe = []
@@ -124,7 +129,6 @@ def assess_module(spec: ModuleSpec, profile: str) -> ModuleAssessment:
         raise ValueError(f'Unknown acceptance profile: {profile}')
     module_dir = ROOT / 'modules' / spec.module_id
     page_file = module_dir / 'page.py'
-    algorithm_file = module_dir / 'algorithm.py'
     readme_file = module_dir / 'README.md'
     test_file = module_dir / f'test_{spec.module_id}.py'
     dataset_card = module_dir / 'DATASET_CARD.md'
@@ -135,7 +139,17 @@ def assess_module(spec: ModuleSpec, profile: str) -> ModuleAssessment:
     page_text = page_file.read_text(encoding='utf-8') if page_file.is_file() else ''
     is_placeholder = any(marker in page_text for marker in PLACEHOLDER_MARKERS)
     checks.append(_check('真实页面', bool(page_text) and not is_placeholder, '页面已脱离占位实现', '仍在使用占位页面'))
-    checks.append(_check('算法文件', algorithm_file.is_file(), 'algorithm.py 存在', '缺少 algorithm.py'))
+    try:
+        algorithm_specs = list_algorithms(spec.module_id)
+        checks.append(_check(
+            '算法注册',
+            bool(algorithm_specs),
+            f'发现 {len(algorithm_specs)} 个合法算法清单',
+            '缺少 modules/<module_id>/algorithms/<algorithm_id>/algorithm.json',
+        ))
+    except Exception as exc:
+        algorithm_specs = ()
+        checks.append(Check('算法注册', 'fail', f'{type(exc).__name__}: {exc}'))
 
     readme_text = readme_file.read_text(encoding='utf-8') if readme_file.is_file() else ''
     missing_sections = [section for section in README_SECTIONS if section not in readme_text]

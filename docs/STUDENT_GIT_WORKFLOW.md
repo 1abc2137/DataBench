@@ -98,7 +98,7 @@ g01/interactive-page
 g01/metrics-and-tests
 ```
 
-组内应提前约定文件分工，尽量不要同时修改同一段 `page.py`、`algorithm.py` 或测试代码。
+组内应提前约定文件分工，尽量按 `algorithms/<algorithm_id>/` 分配算法，避免同时修改同一段 `page.py` 或测试代码。
 
 ## 4. 学生可以修改哪些文件
 
@@ -129,7 +129,8 @@ tools/acceptance.py
 
 不要提交以下内容：
 
-- `.venv/`；
+- 任意位置的 `.venv/`；
+- `.algorithm_envs/` 和 `runs/`；
 - `__pycache__/` 和 `.pytest_cache/`；
 - `experiments/` 和 `reports/` 中的临时运行结果；
 - 大型原始数据和模型权重；

@@ -1,3 +1,5 @@
-from .algorithm import detect_missing
+"""Error-detection module package.
 
-__all__ = ['detect_missing']
+Algorithms are discovered from ``algorithms/*/algorithm.json`` and executed
+through ``core.executor`` rather than imported from this package.
+"""

@@ -2,7 +2,7 @@
 
 ## 1. 这套工具解决什么问题
 
-`python -m pytest` 用来判断公共接口和已有功能有没有被破坏，但“测试全部通过”不等于某个学生模块已经完成。未开发模块的占位页面也能通过基础页面测试。
+`uv run python -m pytest` 用来判断公共接口和已有功能有没有被破坏，但“测试全部通过”不等于某个学生模块已经完成。未开发模块的占位页面也能通过基础页面测试。
 
 `tools/acceptance.py` 解决的是另一类问题：它要求学生模块使用小型样例真实运行算法，生成 `AlgorithmResult` 和实验 JSON，再检查页面、文档、测试和数据材料是否达到相应提交要求。
 
@@ -11,7 +11,7 @@
 | 术语 | 含义 |
 | --- | --- |
 | 测试 | Pytest 中的单个自动化案例，验证一项具体代码行为。 |
-| 检查项 | 验收器针对模块执行的一项判断，例如“算法文件存在”或“实验 JSON 字段完整”。 |
+| 检查项 | 验收器针对模块执行的一项判断，例如“算法已经注册”或“实验 JSON 字段完整”。 |
 | 自动门禁 | 汇总所有自动检查结果。任何必需检查失败时输出 `BLOCKED`，全部通过时输出 `PASS`。 |
 | 人工复核 | 工具无法可靠判断的内容，例如数据许可是否真实、页面解释是否清楚、指标结论是否夸大。 |
 
@@ -24,17 +24,17 @@
 用于日常开发和首次提交。重点回答：“模块是不是已经脱离占位状态，能否用小数据真实跑通？”
 
 ```powershell
-python tools\acceptance.py --profile development --module error_detection
+uv run python tools\acceptance.py --profile development --module error_detection
 ```
 
-主要要求：真实页面、算法文件、模块 README、正常与错误输入测试、验收入口、小型样例、合法结果、实验 JSON 和安全文件。
+主要要求：真实页面、算法注册、模块 README、正常与错误输入测试、验收入口、小型样例、合法结果、实验 JSON 和安全文件。
 
 ### 中期提交检查 `midterm`
 
 用于提交第一个端到端可运行版本。重点回答：“至少一种基础方法能否从输入一直运行到结果与实验记录？”
 
 ```powershell
-python tools\acceptance.py --profile midterm --module error_detection
+uv run python tools\acceptance.py --profile midterm --module error_detection
 ```
 
 除开发自查内容外，还要求至少一种可运行方法，以及正常输入、错误输入、结果合同和实验保存四类测试。
@@ -44,7 +44,7 @@ python tools\acceptance.py --profile midterm --module error_detection
 用于课程最终提交。重点回答：“两种方法、数据说明、实验比较和局限性是否齐全？”
 
 ```powershell
-python tools\acceptance.py --profile final --module error_detection
+uv run python tools\acceptance.py --profile final --module error_detection
 ```
 
 除中期提交内容外，还要求至少两种不同方法或实验策略、模块级 `DATASET_CARD.md`，以及 README 中的指标和失败案例说明。
@@ -52,7 +52,7 @@ python tools\acceptance.py --profile final --module error_detection
 不指定 `--module` 时会检查全部 8 个模块：
 
 ```powershell
-python tools\acceptance.py --profile development --label weekly_check
+uv run python tools\acceptance.py --profile development --label weekly_check
 ```
 
 ## 3. 学生需要提供的验收入口
@@ -82,7 +82,7 @@ def run_acceptance(output_dir: Path) -> AcceptanceEvidence:
 | 模块目录 | 检查 `modules/<module_id>/` 是否存在 | 防止代码放错目录或模块 ID 写错 | 按注册表中的模块 ID 建目录 |
 | 页面入口 | 导入注册表指定的 `page.py::render` 并确认可调用 | 统一应用必须能加载页面 | 修复导入错误并保留无参数 `render()` |
 | 真实页面 | 检查页面是否仍调用公共占位渲染器 | 占位页能打开，但不代表模块已开发 | 实现输入、参数、运行、结果和错误提示 |
-| 算法文件 | 检查本组 `algorithm.py` | 防止把全部算法写进页面或仍无算法 | 将业务逻辑放入本组算法文件 |
+| 算法注册 | 检查 `algorithms/<algorithm_id>/algorithm.json` 并验证运行环境字段 | 防止算法不可发现或页面直接导入特殊依赖 | 按模板填写清单并通过 executor 调用 |
 | 模块 README | 检查“方法、数据、运行、限制”四个小节 | 保证他人能理解和复现 | 补齐对应标题和实际命令 |
 | 正常与错误测试 | 至少发现两个测试，并包含错误/非法输入类测试名 | 只测成功路径容易隐藏输入问题 | 增加正常样例和非法输入测试 |
 | 验收入口 | 导入并执行 `run_acceptance()`，检查返回类型 | 证明算法确实能在统一环境运行 | 按模板返回 `AcceptanceEvidence` |

@@ -1,9 +1,8 @@
 from pathlib import Path
 
 from core.acceptance import AcceptanceEvidence
-from core.datasets import load_csv
+from core.executor import execute_algorithm
 from core.experiment import save_experiment
-from modules.error_detection.algorithm import detect_missing
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -11,7 +10,13 @@ SAMPLE = ROOT / 'datasets' / 'samples' / 'errors_demo.csv'
 
 
 def run_acceptance(output_dir: Path) -> AcceptanceEvidence:
-    result = detect_missing(load_csv(SAMPLE))
+    result = execute_algorithm(
+        module_id='error_detection',
+        algorithm_id='missing_value_baseline',
+        inputs={'dataset_path': SAMPLE},
+        params={},
+        workspace_root=output_dir / 'runs',
+    )
     experiment = save_experiment(
         result,
         dataset_id='errors_demo_v1',

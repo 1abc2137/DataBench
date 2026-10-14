@@ -15,13 +15,16 @@ TASKS = {
 
 
 def test_student_release_materials_are_complete():
-    assert (ROOT / 'VERSION').read_text(encoding='utf-8').strip() == '0.4.1'
+    assert (ROOT / 'VERSION').read_text(encoding='utf-8').strip() == '0.5.0'
+    for required in ('pyproject.toml', 'uv.lock', '.python-version'):
+        assert (ROOT / required).is_file(), required
+    assert not (ROOT / 'requirements.txt').exists()
     for required in (
         'docs/STUDENT_RELEASE_GUIDE.md',
         'docs/MINIMUM_PLAN_TEMPLATE.md',
         'docs/DATASET_CARD_TEMPLATE.md',
         'docs/SUBMISSION_CHECKLIST.md',
-        'docs/STUDENT_RELEASE_NOTES_v0.4.1.md',
+        'docs/STUDENT_RELEASE_NOTES_v0.5.0.md',
         'docs/ACCEPTANCE_GUIDE.md',
         'docs/TESTING_GUIDE.md',
     ):

@@ -2,36 +2,37 @@
 
 ## 1. 测试的作用和边界
 
-当前测试套件共有 42 个测试用例。它们用于保护公共接口、已有示例、页面注册、数据加载和验收工具，确保一个小组的修改不会破坏其他模块。
+当前测试套件共有 50 个测试用例，用于保护公共接口、算法注册和执行、已有示例、页面注册、数据加载和验收工具，确保一个小组的修改不会破坏其他模块。
 
 测试全部通过只说明“现有代码符合当前合同”，不表示 8 个学生模块都已完成。未开发模块当前只有页面入口测试，完成算法后必须由对应小组补充正常输入、错误输入、结果合同、实验保存和指标测试。
 
 运行全部测试：
 
 ```powershell
-python -m pytest -q
+uv run python -m pytest -q
 ```
 
 只运行一个文件：
 
 ```powershell
-python -m pytest tests\test_contract.py -q
+uv run python -m pytest tests\test_contract.py -q
 ```
 
 只运行一个测试：
 
 ```powershell
-python -m pytest tests\test_contract.py::test_experiment_record -q
+uv run python -m pytest tests\test_contract.py::test_experiment_record -q
 ```
 
-## 2. 42 个测试分别检查什么
+## 2. 公共测试分别检查什么
 
-### 各模块目录中的测试：11 个
+### 各模块目录中的测试：12 个
 
 | 测试 | 数量 | 验证内容 | 失败通常表示 |
 | --- | ---: | --- | --- |
 | `test_<module_id>_page_entrypoint` | 8 | 注册表页面路径与本组 `render()` 一致，并且函数可调用 | 页面改名、入口路径错误或导入失败 |
 | `test_normal_sample_returns_contract_result` | 1 | 错误检测默认样例能运行，返回 `error_detection` 结果并发现两个缺失单元格 | 算法输出、样例或结果合同被破坏 |
+| `test_algorithm_is_registered` | 1 | 缺失值 baseline 具有合法算法清单并使用预期 runtime | 算法目录、清单或注册器被破坏 |
 | `test_invalid_reserved_row_id_is_rejected` | 1 | 用户 CSV 已含保留列 `__row_id` 时必须拒绝 | 数据加载器可能覆盖内部稳定行号 |
 | `test_acceptance_smoke_saves_complete_experiment` | 1 | 错误检测验收入口能运行并保存任务、算法和预测完整的 JSON | 端到端验收或实验记录断裂 |
 
@@ -52,6 +53,18 @@ python -m pytest tests\test_contract.py::test_experiment_record -q
 | --- | --- | --- |
 | `test_app_exposes_all_registered_pages_without_exceptions` | 使用 Streamlit 测试运行器依次打开 8 个侧边栏入口，检查标签、页面标题和异常 | 某个页面导入失败、注册丢失或页面运行抛异常 |
 | `test_error_detection_page_keeps_runnable_example` | 在页面点击运行按钮，确认默认样例得到“2 个疑似缺失单元格” | 页面按钮、默认数据或错误检测示例被破坏 |
+
+### `tests/test_algorithm_runtime.py`：7 个
+
+| 测试方向 | 验证内容 | 失败通常表示 |
+| --- | --- | --- |
+| 算法发现 | `algorithm.json` 能被注册器发现，未知算法会被拒绝 | 清单路径、字段或算法 ID 错误 |
+| 上传文件落盘 | 上传对象被安全保存到本次运行目录 | 子进程无法读取页面上传数据 |
+| 运行证据 | 请求、结果、stdout 和 stderr 文件齐全 | executor 未形成可追踪运行记录 |
+| 参数合同 | `params` 必须是字典 | 页面和算法之间的参数协议不稳定 |
+| uv 命令 | 独立算法必须使用指定项目和 `--frozen` 锁文件运行 | 子进程可能使用错误环境或重新解析依赖 |
+| Conda 环境 | 未准备好的 Conda 环境必须给出明确安装提示 | 页面可能直接抛出难理解的进程错误 |
+| 子进程结果合同 | 缺失 `AlgorithmResult` 字段的结果 JSON 会被拒绝 | 外部算法可能绕过统一结果合同 |
 
 ### `tests/test_contract.py`：8 个
 
@@ -123,7 +136,7 @@ def test_rule_detector_rejects_missing_rule_configuration():
 Windows 出现 `pytest-of-用户名` 的 `PermissionError` 时，可临时使用项目内目录：
 
 ```powershell
-python -m pytest -q --basetemp .pytest-tmp-local
+uv run python -m pytest -q --basetemp .pytest-tmp-local
 ```
 
 这只是在更换测试临时目录，不会掩盖业务测试失败。测试结束后可以删除 `.pytest-tmp-local`。
@@ -132,15 +145,15 @@ python -m pytest -q --basetemp .pytest-tmp-local
 
 ```powershell
 # 本组测试
-python -m pytest modules\<module_id>\test_<module_id>.py -q
+uv run python -m pytest modules\<module_id>\test_<module_id>.py -q
 
 # 公共和全平台测试
-python -m pytest -q
+uv run python -m pytest -q
 
 # 本组开发自查
-python tools\acceptance.py --profile development --module <module_id>
+uv run python tools\acceptance.py --profile development --module <module_id>
 
 # 根据提交要求选择更完整的检查
-python tools\acceptance.py --profile midterm --module <module_id>
-python tools\acceptance.py --profile final --module <module_id>
+uv run python tools\acceptance.py --profile midterm --module <module_id>
+uv run python tools\acceptance.py --profile final --module <module_id>
 ```

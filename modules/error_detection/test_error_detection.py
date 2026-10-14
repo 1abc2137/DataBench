@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pytest
 
+from core.algorithm_registry import get_algorithm
 from core.datasets import load_csv
+from core.executor import execute_algorithm
 from core.registry import get_module
 from modules.error_detection.acceptance import run_acceptance
-from modules.error_detection.algorithm import detect_missing
 from modules.error_detection.page import render
 
 
@@ -19,10 +20,21 @@ def test_error_detection_page_entrypoint():
     assert callable(render)
 
 
-def test_normal_sample_returns_contract_result():
-    result = detect_missing(load_csv(SAMPLE))
+def test_normal_sample_returns_contract_result(tmp_path):
+    result = execute_algorithm(
+        'error_detection',
+        'missing_value_baseline',
+        {'dataset_path': SAMPLE},
+        workspace_root=tmp_path,
+    )
     assert result.validate().task_type == 'error_detection'
     assert len(result.predictions) == 2
+
+
+def test_algorithm_is_registered():
+    spec = get_algorithm('error_detection', 'missing_value_baseline')
+    assert spec.runtime == 'builtin'
+    assert spec.label == '缺失值检测 Baseline'
 
 
 def test_invalid_reserved_row_id_is_rejected(tmp_path):

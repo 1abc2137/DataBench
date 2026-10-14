@@ -12,10 +12,12 @@ ARCHIVE_ROOT = f'DataBench_Starter_v{VERSION}'
 
 TOP_LEVEL_FILES = (
     '.gitignore',
+    '.python-version',
     'app.py',
     'CHANGELOG.md',
+    'pyproject.toml',
     'README.md',
-    'requirements.txt',
+    'uv.lock',
     'VERSION',
 )
 DIRECTORIES = (
@@ -28,10 +30,12 @@ DIRECTORIES = (
 )
 DOCUMENTS = (
     'docs/ACCEPTANCE_GUIDE.md',
+    'docs/ALGORITHM_RUNNER_TEMPLATE.py',
     'docs/DATASET_CARD_TEMPLATE.md',
     'docs/MINIMUM_PLAN_TEMPLATE.md',
     'docs/MODULE_SPEC.md',
     'docs/STUDENT_MODULE_TEMPLATE.md',
+    'docs/STUDENT_GIT_WORKFLOW.md',
     'docs/STUDENT_RELEASE_GUIDE.md',
     f'docs/STUDENT_RELEASE_NOTES_v{VERSION}.md',
     'docs/SUBMISSION_CHECKLIST.md',
@@ -49,7 +53,7 @@ def sha256(path: Path) -> str:
 
 def include_file(path: Path) -> bool:
     relative = path.relative_to(ROOT)
-    if any(part in {'.venv', '.pytest_cache', '__pycache__', 'experiments', 'release'} for part in relative.parts):
+    if any(part in {'.venv', '.algorithm_envs', '.pytest_cache', '__pycache__', 'experiments', 'release', 'runs'} for part in relative.parts):
         return False
     return path.is_file() and path.suffix not in {'.pyc', '.pyo'}
 

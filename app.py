@@ -5,7 +5,7 @@ from core.registry import MODULE_SPECS, get_module, load_page_renderer
 
 st.set_page_config(page_title='DataBench Starter', page_icon='🗃️', layout='wide')
 st.title('DataBench · 统一算法评测平台')
-st.caption('教学原型 v0.4.1：已提供开发自查和提交检查；仅第1组具有可运行薄片。')
+st.caption('教学原型 v0.5.0：使用 uv 和统一算法执行器；仅第1组具有可运行薄片。')
 
 module_id = st.sidebar.selectbox(
     '选择模块',

@@ -16,6 +16,8 @@ assignees: ""
 
 - 操作系统及版本：
 - Python 版本：
+- uv 版本：
+- 算法 runtime（builtin/uv/conda）：
 - DataBench 版本：
 - 安装命令：
 - 关键依赖版本：
@@ -46,5 +48,5 @@ assignees: ""
 ## 附加信息
 
 - [ ] 我已运行本组测试。
-- [ ] 我已运行 `python -m pytest -q`。
+- [ ] 我已运行 `uv run python -m pytest -q`。
 - [ ] 我确认问题不需要修改公共接口。

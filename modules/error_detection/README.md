@@ -11,14 +11,14 @@
 ## 运行
 
 ```powershell
-python -m pytest modules\error_detection\test_error_detection.py -q
-python tools\acceptance.py --profile development --module error_detection
-python -m streamlit run app.py
+uv run python -m pytest modules\error_detection\test_error_detection.py -q
+uv run python tools\acceptance.py --profile development --module error_detection
+uv run python -m streamlit run app.py
 ```
 
 ## 输出
 
-算法返回 `AlgorithmResult`，每项预测包含 `row_id`、`column`、`error_type` 和 `score`。页面运行后保存完整实验 JSON。
+算法通过 `algorithms/missing_value_baseline/algorithm.json` 注册为 `builtin`，由统一 executor 运行并返回 `AlgorithmResult`。每项预测包含 `row_id`、`column`、`error_type` 和 `score`，页面运行后保存完整实验 JSON。
 
 ## 限制
 

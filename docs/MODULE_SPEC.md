@@ -1,4 +1,4 @@
-# DataBench 模块接口约定 v0.3
+# DataBench 模块接口约定 v0.5
 
 ## 目的
 
@@ -98,7 +98,11 @@ tables = load_csv_collection([query_file, candidate_file])
 4. 与任务匹配的结果展示。
 5. 调用 `save_experiment` 保存可复现实验。
 
-主要算法应放入本组的 `algorithm.py` 或其他业务文件，而不是全部写进 `page.py`。页面导入时不应连接外部数据库、下载大型数据或自动启动耗时任务。
+主要算法应放入 `algorithms/<algorithm_id>/` 并通过 `algorithm.json` 注册，而不是写进 `page.py`。页面只能通过 `core.executor.execute_algorithm` 运行算法；页面导入时不应连接外部数据库、下载大型数据或自动启动耗时任务。
+
+## 算法运行合同
+
+运行时分为 `builtin`、`uv` 和 `conda`。`builtin` 算法入口接收 `inputs: dict` 和 `params: dict` 并返回 `AlgorithmResult`；uv 与 Conda 算法通过 runner 读取请求 JSON、写入结果 JSON。特殊环境返回的结果会由公共 executor 转换并验证为 `AlgorithmResult`。页面不得自行拼接 shell 命令或保存机器相关的绝对环境路径。
 
 ## 各任务 predictions 建议结构
 
@@ -132,6 +136,5 @@ tables = load_csv_collection([query_file, candidate_file])
 1. 写明当前接口、期望接口、变更理由和受影响模块。
 2. 判断需求是否至少被多个模块复用；仅服务单组的逻辑留在组内。
 3. 先更新规范和测试，再修改公共实现。
-4. 提供兼容层或迁移说明。
-5. 合并前后运行全量测试和受影响模块示例。
-6. 更新版本号与变更记录，并通知所有小组。
+4. 合并前后运行全量测试和受影响模块示例。
+5. 更新版本号与变更记录，并通知所有小组。

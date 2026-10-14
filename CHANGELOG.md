@@ -1,5 +1,13 @@
 # DataBench Starter 变更记录
 
+## 0.5.0 2026-10-14
+
+- 根项目改用 `pyproject.toml`、`uv.lock` 和 `.python-version`，移除旧 `requirements.txt` 工作流。
+- 新增算法清单注册器、统一 executor、运行目录和 builtin/uv/Conda 三种运行时。
+- 页面通过 JSON 运行协议调用隔离算法，上传文件、请求、结果和日志均可追踪。
+- 缺失值 baseline 迁入独立算法目录，页面与验收不再直接导入模块根 `algorithm.py`。
+- 更新学生模板、测试说明、验收规则、发布工具和 GitHub 模板。
+
 ## 0.4.1 2026-10-11
 
 - 学生文档不再使用内部开发阶段编号，统一改为开发自查、中期提交检查和最终提交检查。

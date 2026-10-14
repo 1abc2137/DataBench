@@ -1,0 +1,8 @@
+{
+  "module_id": "error_detection",
+  "algorithm_id": "missing_value_baseline",
+  "label": "缺失值检测 Baseline",
+  "runtime": "builtin",
+  "entrypoint": "modules.error_detection.algorithms.missing_value_baseline.algorithm:run",
+  "timeout_seconds": 60
+}

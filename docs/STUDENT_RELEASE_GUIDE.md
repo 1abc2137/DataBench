@@ -2,7 +2,7 @@
 
 ## 发布信息
 
-学生开发包版本为 v0.4.1。压缩包名称为 `DataBench_Starter_v0.4.1_student.zip`，对应 SHA-256 文件与压缩包放在同一 `release` 目录。解压后先核对版本文件，再安装依赖和运行测试。
+学生开发包版本为 v0.5.0。压缩包名称为 `DataBench_Starter_v0.5.0_student.zip`，对应 SHA-256 文件与压缩包放在同一 `release` 目录。解压后先核对版本文件，再安装依赖和运行测试。
 
 ## 开始前必须完成
 
@@ -14,14 +14,12 @@
 ## 安装和验证
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m pytest -q
-python -m streamlit run app.py
+uv sync --frozen
+uv run python -m pytest -q
+uv run python -m streamlit run app.py
 ```
 
-建议 Python 3.10 或 3.11。首次验收应看到 42 项测试通过；第 1 组示例检测到 2 个缺失单元格；第 2 至第 8 组占位页可以打开。
+先安装 uv；项目会根据 `.python-version` 自动准备 Python 3.10，不要手工创建或激活虚拟环境。首次验收应看到 50 项测试通过；第 1 组示例检测到 2 个缺失单元格；第 2 至第 8 组占位页可以打开。
 
 ## 文件所有权
 
@@ -34,16 +32,16 @@ python -m streamlit run app.py
 
 1. 保持本组现有 smoke test 通过。
 2. 创建可以在几秒内运行的小型示例数据。
-3. 完成第一种简单基线和 `AlgorithmResult` 输出。
-4. 在本组页面显示输入、参数、结果和错误提示。
+3. 在 `algorithms/<algorithm_id>/` 完成第一种简单基线、`algorithm.json` 和 `AlgorithmResult` 输出。
+4. 在本组页面通过 `execute_algorithm` 显示输入、参数、结果和错误提示。
 5. 使用 `save_experiment` 保存 JSON。
 6. 增加第二种方法或实验策略及对比指标。
 7. 增加正常、异常、合同、实验保存和指标测试。
 8. 按 `docs/SUBMISSION_CHECKLIST.md` 自查后提交。
 
-每组还需提供 `acceptance.py::run_acceptance(output_dir)`，用小型样例真实运行算法并返回 `AcceptanceEvidence`。可随时运行 `python tools\acceptance.py --profile development --module <module_id>` 查看本组缺失项。
+每组还需提供 `acceptance.py::run_acceptance(output_dir)`，用小型样例真实运行算法并返回 `AcceptanceEvidence`。可随时运行 `uv run python tools\acceptance.py --profile development --module <module_id>` 查看本组缺失项。
 
-`docs/TESTING_GUIDE.md` 逐项解释现有 42 个测试；`docs/ACCEPTANCE_GUIDE.md` 解释自动检查项、门禁判定和人工复核。开始开发前应先读这两份说明，避免把“测试通过”误解为“模块已经完成”。
+`docs/TESTING_GUIDE.md` 逐项解释公共测试；`docs/ACCEPTANCE_GUIDE.md` 解释自动检查项、门禁判定和人工复核。开始开发前应先读这两份说明，避免把“测试通过”误解为“模块已经完成”。
 
 ## 问题反馈
 
