@@ -1,0 +1,8 @@
+{
+  "module_id": "quality_impact",
+  "algorithm_id": "missing_baseline",
+  "label": "缺失值扰动与清洗",
+  "runtime": "builtin",
+  "entrypoint": "modules.quality_impact.algorithms.missing_baseline.algorithm:run",
+  "timeout_seconds": 120
+}

@@ -1,0 +1,8 @@
+{
+  "module_id": "quality_impact",
+  "algorithm_id": "duplicate_impact",
+  "label": "重复记录扰动与清洗",
+  "runtime": "builtin",
+  "entrypoint": "modules.quality_impact.algorithms.duplicate_impact.algorithm:run",
+  "timeout_seconds": 120
+}

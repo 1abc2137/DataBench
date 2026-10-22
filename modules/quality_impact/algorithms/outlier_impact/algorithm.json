@@ -1,0 +1,8 @@
+{
+  "module_id": "quality_impact",
+  "algorithm_id": "outlier_impact",
+  "label": "离群值扰动与清洗",
+  "runtime": "builtin",
+  "entrypoint": "modules.quality_impact.algorithms.outlier_impact.algorithm:run",
+  "timeout_seconds": 120
+}

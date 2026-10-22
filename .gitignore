@@ -15,3 +15,6 @@ reports/
 .env.*
 .DS_Store
 Thumbs.db
+
+# 大型原始数据不提交，用 modules/quality_impact/prepare_datasets.py 重新生成
+datasets/samples/adult.csv
