@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import IsolationForest, RandomForestClassifier
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401  # 启用 IterativeImputer
+from sklearn.impute import IterativeImputer, KNNImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
@@ -201,18 +203,133 @@ def aggregate_duplicates(df: pd.DataFrame, target: str) -> pd.DataFrame:
     return result.reindex(columns=feats + [target])
 
 
+def _impute_numeric(df: pd.DataFrame, target: str, imputer) -> pd.DataFrame:
+    """用 sklearn imputer 插补数值列，类别列用众数填充（复杂策略共用）。"""
+    cleaned = df.copy()
+    feats = _feature_cols(df, target)
+    num_cols = [c for c in feats if pd.to_numeric(cleaned[c], errors='coerce').notna().any()]
+    cat_cols = [c for c in feats if c not in num_cols]
+    if num_cols and len(cleaned) >= 2:
+        num = cleaned[num_cols].apply(pd.to_numeric, errors='coerce')
+        if num.isna().any().any():
+            filled = imputer.fit_transform(num)
+            num = pd.DataFrame(filled, columns=num_cols, index=num.index)
+        cleaned[num_cols] = num.fillna(num.median().fillna(0.0))
+    for col in cat_cols:
+        mode = cleaned[col].mode()
+        cleaned[col] = cleaned[col].fillna(mode.iloc[0] if not mode.empty else 'missing')
+    return cleaned
+
+
+def knn_impute(df: pd.DataFrame, target: str) -> pd.DataFrame:
+    """复杂策略：K 近邻插补数值列。"""
+    return _impute_numeric(df, target, KNNImputer(n_neighbors=3))
+
+
+def iterative_impute(df: pd.DataFrame, target: str) -> pd.DataFrame:
+    """复杂策略：迭代回归插补（MICE 简化）数值列。"""
+    return _impute_numeric(df, target, IterativeImputer(max_iter=10, random_state=0))
+
+
+def isolation_forest_repair(df: pd.DataFrame, target: str) -> pd.DataFrame:
+    """复杂策略：孤立森林检测离群行，把检出行的数值列截断到 IQR 边界。"""
+    num_cols = numeric_columns(df, target)
+    if not num_cols or len(df) < 10:
+        return winsorize_outliers(df, target)
+    cleaned = df.copy()
+    X = cleaned[num_cols].apply(pd.to_numeric, errors='coerce').fillna(0.0)
+    flags = IsolationForest(random_state=0, n_estimators=100, contamination='auto').fit_predict(X)
+    outlier_mask = flags == -1
+    for col in num_cols:
+        vals = pd.to_numeric(cleaned[col], errors='coerce').astype(float)
+        q1, q3 = vals.quantile(0.25), vals.quantile(0.75)
+        iqr = q3 - q1
+        if pd.isna(iqr) or iqr == 0:
+            continue
+        lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+        cleaned[col] = vals.where(~outlier_mask, vals.clip(lo, hi))
+    return cleaned
+
+
+def iterative_winsorize(df: pd.DataFrame, target: str) -> pd.DataFrame:
+    """复杂策略：迭代 IQR 截断，直到不再产生新离群值（最多 5 轮）。"""
+    cleaned = df.copy()
+    for _ in range(5):
+        changed = False
+        for col in numeric_columns(df, target):
+            vals = pd.to_numeric(cleaned[col], errors='coerce').astype(float)
+            q1, q3 = vals.quantile(0.25), vals.quantile(0.75)
+            iqr = q3 - q1
+            if pd.isna(iqr) or iqr == 0:
+                continue
+            lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+            clipped = vals.clip(lo, hi)
+            if not np.allclose(clipped.to_numpy(), vals.to_numpy(), equal_nan=True):
+                cleaned[col] = clipped
+                changed = True
+        if not changed:
+            break
+    return cleaned
+
+
+def _mode_or_first(series: pd.Series):
+    """取众数；若为空（整列 NaN）则退回首条。"""
+    mode = series.mode()
+    return mode.iloc[0] if not mode.empty else series.iloc[0]
+
+
+def vote_aggregate_duplicates(df: pd.DataFrame, target: str) -> pd.DataFrame:
+    """复杂策略：重复行聚合，数值列均值、类别列与标签列众数投票。"""
+    feats = _feature_cols(df, target)
+    num_cols = numeric_columns(df, target)
+    cat_cols = [c for c in feats if c not in num_cols]
+    pieces: list[pd.DataFrame] = []
+    for _, group in df.groupby(feats, dropna=False, sort=False):
+        if len(group) == 1:
+            pieces.append(group)
+            continue
+        row: dict = {}
+        for col in num_cols:
+            row[col] = pd.to_numeric(group[col], errors='coerce').mean()
+        for col in cat_cols:
+            row[col] = _mode_or_first(group[col])
+        row[target] = _mode_or_first(group[target])
+        pieces.append(pd.DataFrame([row]))
+    if not pieces:
+        return df.iloc[0:0]
+    return pd.concat(pieces, ignore_index=True).reindex(columns=feats + [target])
+
+
+def keep_most_complete(df: pd.DataFrame, target: str) -> pd.DataFrame:
+    """复杂策略：每个重复组保留信息最完整（缺失最少）的一行。"""
+    feats = _feature_cols(df, target)
+    tagged = df.copy()
+    tagged['_n_missing'] = tagged[feats].isna().sum(axis=1)
+    return (
+        tagged.sort_values('_n_missing', kind='stable')
+        .drop_duplicates(subset=feats, keep='first')
+        .drop(columns=['_n_missing'])
+    )
+
+
 CLEANERS = {
     'missing': [
         ('drop_rows', '删除缺失行', drop_missing_rows),
         ('impute', '中位数/众数插补', impute_median_mode),
+        ('knn_impute', 'K近邻插补', knn_impute),
+        ('iterative_impute', '迭代回归插补', iterative_impute),
     ],
     'outlier': [
         ('drop_outliers', '删除离群行', drop_outlier_rows),
         ('winsorize', '离群值截断', winsorize_outliers),
+        ('iso_forest', '孤立森林截断', isolation_forest_repair),
+        ('iterative_winsorize', '迭代截断', iterative_winsorize),
     ],
     'duplicate': [
         ('drop_duplicates', '删除重复记录', drop_duplicate_rows),
         ('aggregate', '重复记录聚合', aggregate_duplicates),
+        ('vote_aggregate', '聚合+一致性投票', vote_aggregate_duplicates),
+        ('keep_complete', '保留最完整记录', keep_most_complete),
     ],
 }
 
@@ -228,15 +345,15 @@ def _train_cleaned(cleaned_df, target, X_test, y_test, classifier) -> dict[str, 
     return train_eval(X, y, X_test, y_test, classifier)
 
 
-def _quality_metrics(train_df, polluted_df, cleaned1_df, cleaned2_df, target, error_type, rate) -> dict:
+def _quality_metrics(train_df, polluted_df, cleaned_dfs, target, error_type, rate) -> dict:
     feats = _feature_cols(polluted_df, target)
     metrics = {
         'error_rate': float(rate),
         'rows_clean': int(len(train_df)),
         'rows_polluted': int(len(polluted_df)),
-        'rows_strategy1': int(len(cleaned1_df)),
-        'rows_strategy2': int(len(cleaned2_df)),
     }
+    for idx, cdf in enumerate(cleaned_dfs, start=1):
+        metrics[f'rows_strategy{idx}'] = int(len(cdf))
     if error_type == 'missing':
         metrics['missing_rate'] = float(polluted_df[feats].isna().sum().sum() / (len(polluted_df) * len(feats)))
     elif error_type == 'duplicate':
@@ -245,7 +362,7 @@ def _quality_metrics(train_df, polluted_df, cleaned1_df, cleaned2_df, target, er
 
 
 def run_quality_experiment(df, target, error_type, rate, seed, classifier) -> dict:
-    """跑完整四种条件对比：clean / polluted / strategy1 / strategy2。"""
+    """跑完整条件对比：clean / polluted / 全部清洗策略。"""
     if error_type not in PERTURBERS:
         raise ValueError(f'未知错误类型: {error_type}')
     if target not in df.columns:
@@ -262,37 +379,38 @@ def run_quality_experiment(df, target, error_type, rate, seed, classifier) -> di
     # polluted 条件不做规范清洗；缺失值用 0 填充仅为让模型可运行（语义见 metadata note）
     polluted_metrics = train_eval(X_polluted.fillna(0.0), y_polluted, X_test, y_test, classifier)
 
-    (_, s1_label, s1_fn), (_, s2_label, s2_fn) = CLEANERS[error_type]
-    cleaned1_df = s1_fn(polluted_df, target)
-    cleaned2_df = s2_fn(polluted_df, target)
-    strategy1_metrics = _train_cleaned(cleaned1_df, target, X_test, y_test, classifier)
-    strategy2_metrics = _train_cleaned(cleaned2_df, target, X_test, y_test, classifier)
-
+    strategies = CLEANERS[error_type]
+    strategy_results: list[dict] = []
+    cleaned_dfs: list[pd.DataFrame] = []
     comparisons = [
         {'condition': 'clean', **clean_metrics},
         {'condition': 'polluted', **polluted_metrics},
-        {'condition': 'strategy1', **strategy1_metrics},
-        {'condition': 'strategy2', **strategy2_metrics},
     ]
     downstream_metrics = {
         'clean_f1': clean_metrics['f1'],
         'polluted_f1': polluted_metrics['f1'],
-        'strategy1_f1': strategy1_metrics['f1'],
-        'strategy2_f1': strategy2_metrics['f1'],
     }
+    for idx, (key, label, fn) in enumerate(strategies, start=1):
+        cleaned_df = fn(polluted_df, target)
+        cleaned_dfs.append(cleaned_df)
+        m = _train_cleaned(cleaned_df, target, X_test, y_test, classifier)
+        cond = f'strategy{idx}'
+        strategy_results.append({'key': key, 'label': label, 'condition': cond})
+        comparisons.append({'condition': cond, **m})
+        downstream_metrics[f'{cond}_f1'] = m['f1']
 
     return {
-        'quality_metrics': _quality_metrics(train_df, polluted_df, cleaned1_df, cleaned2_df, target, error_type, rate),
+        'quality_metrics': _quality_metrics(train_df, polluted_df, cleaned_dfs, target, error_type, rate),
         'downstream_metrics': downstream_metrics,
         'comparisons': comparisons,
+        'strategies': strategy_results,
         'metadata': {
             'target': target,
             'error_type': error_type,
             'rate': rate,
             'seed': seed,
             'classifier': classifier,
-            'strategy1': s1_label,
-            'strategy2': s2_label,
+            'strategies': [{'key': k, 'label': l} for k, l, _ in strategies],
             'note': 'polluted 条件对缺失值用 0 填充仅为让模型可运行，不视为规范清洗',
         },
     }
@@ -319,6 +437,7 @@ def build_algorithm_run(error_type: str, algorithm_id: str):
                 'quality_metrics': payload['quality_metrics'],
                 'downstream_metrics': payload['downstream_metrics'],
                 'comparisons': payload['comparisons'],
+                'strategies': payload['strategies'],
             },
             metrics=payload['downstream_metrics'],
             metadata=payload['metadata'],

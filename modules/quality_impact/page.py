@@ -29,12 +29,14 @@ BUILTIN_DATASETS = {
     },
 }
 
-CONDITION_ORDER = ['clean', 'polluted', 'strategy1', 'strategy2']
+CONDITION_ORDER = ['clean', 'polluted', 'strategy1', 'strategy2', 'strategy3', 'strategy4']
 CONDITION_LABELS = {
     'clean': '原始干净',
-    'polluted': '污染后',
-    'strategy1': '策略一（简单清洗）',
-    'strategy2': '策略二（统计清洗）',
+    'polluted': '污染后（不清洗）',
+    'strategy1': '策略一',
+    'strategy2': '策略二',
+    'strategy3': '策略三',
+    'strategy4': '策略四',
 }
 
 CLASSIFIER_LABELS = {'logreg': 'Logistic Regression', 'random_forest': 'Random Forest'}
@@ -47,6 +49,8 @@ QUALITY_LABELS = {
     'rows_polluted': '污染后行数',
     'rows_strategy1': '策略一行数',
     'rows_strategy2': '策略二行数',
+    'rows_strategy3': '策略三行数',
+    'rows_strategy4': '策略四行数',
     'missing_rate': '缺失率',
     'duplicate_rate': '重复率',
 }
@@ -65,6 +69,16 @@ def _f1_by_condition(result) -> dict[str, float | None]:
     return {c['condition']: c['f1'] for c in result.predictions.get('comparisons', [])}
 
 
+def _condition_labels(result) -> dict[str, str]:
+    """把通用条件名映射为带具体策略名的中文标签（依赖本次运行结果）。"""
+    labels = dict(CONDITION_LABELS)
+    for s in result.predictions.get('strategies', []):
+        cond = s['condition']
+        if cond in labels:
+            labels[cond] = f'{labels[cond]}（{s["label"]}）'
+    return labels
+
+
 def _format_quality_value(key: str, value) -> str:
     if value is None:
         return '—'
@@ -78,6 +92,7 @@ def _format_quality_value(key: str, value) -> str:
 def _render_single(result, conditions) -> None:
     f1 = _f1_by_condition(result)
     clean_f1 = f1.get('clean')
+    labels = _condition_labels(result)
 
     cols = st.columns(len(conditions))
     for col, cond in zip(cols, conditions):
@@ -86,7 +101,7 @@ def _render_single(result, conditions) -> None:
         if cond != 'clean' and value is not None and clean_f1 is not None:
             delta = value - clean_f1
         col.metric(
-            CONDITION_LABELS[cond],
+            labels[cond],
             f'{value:.3f}' if value is not None else '—',
             delta=f'{delta:+.3f}' if delta is not None else None,
             delta_color='off',
@@ -97,7 +112,7 @@ def _render_single(result, conditions) -> None:
     comp_df = pd.DataFrame(comparisons).set_index('condition')
     comp_df = comp_df.loc[[c for c in conditions if c in comp_df.index]]
     comp_df = comp_df[['accuracy', 'precision', 'recall', 'f1']]
-    comp_df.index = [CONDITION_LABELS[c] for c in comp_df.index]
+    comp_df.index = [labels[c] for c in comp_df.index]
     comp_df = comp_df.rename(columns=METRIC_LABELS)
     styler = comp_df.style.format('{:.2%}').highlight_max(subset=['F1'], color='#d5f5e3')
     st.markdown('#### 条件对比（下游指标）')
