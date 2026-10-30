@@ -53,14 +53,15 @@ uv run python -m streamlit run app.py
 
 ## 输出与指标
 
-算法通过 `algorithms/<algorithm_id>/algorithm.json` 注册为 `builtin`，由统一 executor 运行并返回 `AlgorithmResult`，`predictions` 含四部分：
+算法通过 `algorithms/<algorithm_id>/algorithm.json` 注册为 `builtin`，由统一 executor 运行并返回 `AlgorithmResult`，`predictions` 含五部分：
 
 - `quality_metrics`：扰动比例、原始/污染后行数、各策略清洗后的行数、缺失率 / 重复率；
 - `downstream_metrics`：六个条件各自的 `clean_f1` / `polluted_f1` / `strategy1_f1` ~ `strategy4_f1`；
 - `comparisons`：六个条件各自的 `accuracy` / `precision` / `recall` / `f1`；
-- `strategies`：本次运行的策略清单（`key` / `label` / `condition`），页面据此生成中文标签。
+- `strategies`：本次运行的策略清单（`key` / `label` / `condition`），页面据此生成中文标签；
+- `multiseed`：每个条件的 `f1_mean` / `f1_std` / `f1_min` / `f1_max` / `n`，仅在 `params['n_seeds'] > 1` 时包含多次运行。
 
-`metrics` 与 `downstream_metrics` 保持一致，便于直接比较。`metadata` 记录目标列、错误类型、扰动比例、随机种子、分类器和四种清洗策略名。页面运行后通过 `save_experiment` 保存完整实验 JSON（配置、指标、元数据、预测结果），样例结果见 `EXPERIMENTS.md`。
+`metrics` 与 `downstream_metrics` 保持一致，便于直接比较。`metadata` 记录目标列、错误类型、扰动比例、随机种子、分类器、四种清洗策略名，以及 `n_seeds` 与本次实际使用的 `seeds` 列表。页面运行后通过 `save_experiment` 保存完整实验 JSON（配置、指标、元数据、预测结果），样例结果见 `EXPERIMENTS.md`。
 
 清洗后训练样本不足（少于 5 行）或只剩单一类别时，该策略的指标为 `null`，页面显示 `—`，不会中断整次运行。
 
@@ -79,6 +80,18 @@ for error_type in ('missing', 'outlier', 'duplicate'):
         print(error_type, rate, r['downstream_metrics'])
 ```
 
+多种子波动可直接调算法入口（`n_seeds` 上限 10）：
+
+```python
+from modules.quality_impact.algorithms.missing_baseline.algorithm import run
+
+result = run(
+    {'dataset_path': 'datasets/samples/quality_demo.csv'},
+    {'target': 'label', 'rate': 0.1, 'seed': 0, 'classifier': 'logreg', 'n_seeds': 5},
+)
+print(result.predictions['multiseed']['clean'])   # f1_mean / f1_std / n ...
+```
+
 ## 失败案例
 
 任务书要求覆盖的健壮性场景在 `test_quality_impact.py` 中均有对应测试：
@@ -90,7 +103,7 @@ for error_type in ('missing', 'outlier', 'duplicate'):
 
 ## 限制
 
-- 目前一次运行只使用一个随机种子；换种子会改变数据划分与扰动位置，页面可手动切换，但尚未提供多种子均值 ± 波动的自动汇总。
+- 多种子只汇总均值、标准差与极值，未做配对 t 检验等统计推断；`n_seeds` 上限 10，页面「扰动比例 → F1 曲线」固定用单一种子扫描。
 - 统计检验（如配对 t 检验）暂未实现，结论为描述性对比，不宣称某清洗方法普遍最优。
 - `polluted` 条件对缺失值用 0 填充仅为让模型可运行，不视为规范清洗。
 - 简单删行策略在高扰动比例下会删掉过多行导致无法训练，该条件指标为空。

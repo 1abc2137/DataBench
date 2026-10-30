@@ -56,12 +56,18 @@ QUALITY_LABELS = {
 }
 
 
-def _run(algorithm_id: str, source, classifier: str, rate: float, seed: int):
+def _run(algorithm_id: str, source, classifier: str, rate: float, seed: int, n_seeds: int = 1):
     return execute_algorithm(
         module_id='quality_impact',
         algorithm_id=algorithm_id,
         inputs={'dataset_path': source},
-        params={'target': 'label', 'rate': rate, 'seed': seed, 'classifier': classifier},
+        params={
+            'target': 'label',
+            'rate': rate,
+            'seed': seed,
+            'classifier': classifier,
+            'n_seeds': n_seeds,
+        },
     )
 
 
@@ -93,6 +99,8 @@ def _render_single(result, conditions) -> None:
     f1 = _f1_by_condition(result)
     clean_f1 = f1.get('clean')
     labels = _condition_labels(result)
+    multi = result.predictions.get('multiseed') or {}
+    show_multi = any((item.get('n') or 0) > 1 for item in multi.values())
 
     cols = st.columns(len(conditions))
     for col, cond in zip(cols, conditions):
@@ -100,23 +108,48 @@ def _render_single(result, conditions) -> None:
         delta = None
         if cond != 'clean' and value is not None and clean_f1 is not None:
             delta = value - clean_f1
+        summary = multi.get(cond) or {}
+        if show_multi and summary.get('f1_mean') is not None:
+            text = f"{summary['f1_mean']:.3f} ± {summary['f1_std']:.3f}"
+        else:
+            text = f'{value:.3f}' if value is not None else '—'
         col.metric(
             labels[cond],
-            f'{value:.3f}' if value is not None else '—',
+            text,
             delta=f'{delta:+.3f}' if delta is not None else None,
             delta_color='off',
         )
-    st.caption('Δ 表示相对「原始干净」的 F1 变化（正 = 上升，负 = 下降）')
+    if show_multi:
+        st.caption(f'数值为 {summary.get("n", 0)} 个种子的 F1 均值 ± 标准差（第一个种子的结果见下方明细表）')
+    else:
+        st.caption('Δ 表示相对「原始干净」的 F1 变化（正 = 上升，负 = 下降）')
 
     comparisons = result.predictions.get('comparisons', [])
     comp_df = pd.DataFrame(comparisons).set_index('condition')
-    comp_df = comp_df.loc[[c for c in conditions if c in comp_df.index]]
+    order = [c for c in conditions if c in comp_df.index]
+    comp_df = comp_df.loc[order]
     comp_df = comp_df[['accuracy', 'precision', 'recall', 'f1']]
     comp_df.index = [labels[c] for c in comp_df.index]
     comp_df = comp_df.rename(columns=METRIC_LABELS)
     styler = comp_df.style.format('{:.2%}').highlight_max(subset=['F1'], color='#d5f5e3')
     st.markdown('#### 条件对比（下游指标）')
     st.dataframe(styler, width='stretch')
+
+    if show_multi:
+        rows = []
+        for cond in order:
+            item = multi.get(cond) or {}
+            rows.append({
+                '条件': labels[cond],
+                'F1 均值': item.get('f1_mean'),
+                '标准差': item.get('f1_std'),
+                '最小': item.get('f1_min'),
+                '最大': item.get('f1_max'),
+                '有效次数': item.get('n'),
+            })
+        multi_df = pd.DataFrame(rows).set_index('条件')
+        st.markdown('#### 多次种子汇总')
+        st.dataframe(multi_df.style.format('{:.4f}', na_rep='—'), width='stretch')
 
     with st.expander('数据质量指标（行数与污染率）'):
         quality = result.predictions.get('quality_metrics', {})
@@ -169,9 +202,10 @@ def render() -> None:
         format_func=labels.get,
     )
     classifier = col2.selectbox('分类器', list(CLASSIFIER_LABELS), format_func=CLASSIFIER_LABELS.get)
-    col3, col4 = st.columns(2)
+    col3, col4, col5 = st.columns(3)
     rate = col3.slider('扰动比例', 0.0, 0.5, 0.1, 0.05)
     seed = col4.number_input('随机种子', 0, 1000, 0, 1)
+    n_seeds = col5.number_input('重复次数（种子数）', 1, 10, 1, 1)
     conditions = st.multiselect(
         '对比条件',
         options=list(CONDITION_LABELS),
@@ -186,7 +220,7 @@ def render() -> None:
     if run_single:
         with st.spinner('算法运行中...'):
             try:
-                result = _run(algorithm_id, source, classifier, rate, seed)
+                result = _run(algorithm_id, source, classifier, rate, seed, n_seeds)
             except AlgorithmRuntimeError as exc:
                 st.error(f'算法运行失败：{exc}')
                 return
@@ -199,7 +233,8 @@ def render() -> None:
         saved = save_experiment(
             result,
             dataset_id=dataset_id,
-            config={'algorithm_id': algorithm_id, 'rate': rate, 'seed': seed, 'classifier': classifier},
+            config={'algorithm_id': algorithm_id, 'rate': rate, 'seed': seed,
+                    'classifier': classifier, 'n_seeds': n_seeds},
         )
         st.caption(f'实验记录已保存：{saved.name}')
 
@@ -209,10 +244,12 @@ def render() -> None:
             return
         rates = [round(i * 0.05, 2) for i in range(0, 11)]
         rows = {}
+        if n_seeds > 1:
+            st.caption('曲线固定使用单一种子扫描（否则需运行 11 × 重复次数 次）；如需波动带，请用低重复次数分点运行。')
         with st.spinner('扫描扰动比例中（0 ~ 0.5，共 11 次）...'):
             for r in rates:
                 try:
-                    res = _run(algorithm_id, source, classifier, r, seed)
+                    res = _run(algorithm_id, source, classifier, r, seed, n_seeds=1)
                 except (AlgorithmRuntimeError, Exception) as exc:
                     st.error(f'扰动比例 {r} 运行失败：{exc}')
                     return

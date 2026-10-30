@@ -241,3 +241,52 @@ def test_contract_rejects_unserializable_result():
     )
     with pytest.raises(TypeError):
         result.validate()
+
+
+# ---------------------------------------------------------------------------
+# 多种子：向后兼容、聚合正确性、上限
+# ---------------------------------------------------------------------------
+
+def _run_missing(params: dict) -> AlgorithmResult:
+    return run_missing(
+        {'dataset_path': str(DEMO)},
+        {'target': 'label', 'rate': 0.1, 'seed': 0, 'classifier': 'logreg', **params},
+    )
+
+
+def test_single_seed_matches_legacy_result():
+    """n_seeds=1 时与不传该参数的结果完全一致。"""
+    base = _run_missing({})
+    with_n = _run_missing({'n_seeds': 1})
+    assert base.predictions['comparisons'] == with_n.predictions['comparisons']
+    assert base.predictions['downstream_metrics'] == with_n.predictions['downstream_metrics']
+
+
+def test_multiseed_structure():
+    result = _run_missing({'n_seeds': 3})
+    multi = result.predictions['multiseed']
+    assert set(multi) == set(ALL_CONDITIONS)
+    assert result.metadata['n_seeds'] == 3
+    assert result.metadata['seeds'] == [0, 1, 2]
+    for item in multi.values():
+        assert item['n'] == 3
+        assert item['f1_std'] >= 0
+        assert item['f1_min'] <= item['f1_mean'] <= item['f1_max']
+    result.to_dict()  # 仍然可以 JSON 序列化
+
+
+def test_multiseed_mean_matches_manual_runs():
+    """聚合结果必须与逐个种子手动运行后的均值一致。"""
+    multi = _run_missing({'n_seeds': 3}).predictions['multiseed']
+    manual = [
+        run_quality_experiment(_demo_df(), 'label', 'missing', 0.1, s, 'logreg')
+        for s in (0, 1, 2)
+    ]
+    for cond in ALL_CONDITIONS:
+        expected = float(np.mean([r['downstream_metrics'][f'{cond}_f1'] for r in manual]))
+        assert multi[cond]['f1_mean'] == pytest.approx(expected, abs=1e-9)
+
+
+def test_n_seeds_is_capped():
+    result = _run_missing({'n_seeds': 99})
+    assert result.metadata['n_seeds'] == 10

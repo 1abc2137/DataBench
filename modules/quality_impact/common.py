@@ -25,11 +25,12 @@ from core.base import AlgorithmResult
 from core.datasets import load_csv
 
 CLASSIFIERS = {
-    'logreg': lambda: make_pipeline(
-        StandardScaler(), LogisticRegression(max_iter=1000, random_state=0, class_weight='balanced')
+    'logreg': lambda seed=0: make_pipeline(
+        StandardScaler(),
+        LogisticRegression(max_iter=1000, random_state=seed, class_weight='balanced'),
     ),
-    'random_forest': lambda: RandomForestClassifier(
-        n_estimators=50, random_state=0, n_jobs=-1, class_weight='balanced'
+    'random_forest': lambda seed=0: RandomForestClassifier(
+        n_estimators=50, random_state=seed, n_jobs=-1, class_weight='balanced'
     ),
 }
 
@@ -71,8 +72,10 @@ def evaluate(model, X_test, y_test) -> dict[str, float]:
     }
 
 
-def train_eval(X_train, y_train, X_test, y_test, classifier: str = 'logreg') -> dict[str, float]:
-    model = CLASSIFIERS[classifier]()
+def train_eval(
+    X_train, y_train, X_test, y_test, classifier: str = 'logreg', seed: int = 0
+) -> dict[str, float]:
+    model = CLASSIFIERS[classifier](seed)
     model.fit(X_train, y_train)
     return evaluate(model, X_test, y_test)
 
@@ -336,13 +339,13 @@ CLEANERS = {
 _EMPTY_METRICS = {'accuracy': None, 'precision': None, 'recall': None, 'f1': None}
 
 
-def _train_cleaned(cleaned_df, target, X_test, y_test, classifier) -> dict[str, float | None]:
+def _train_cleaned(cleaned_df, target, X_test, y_test, classifier, seed: int = 0) -> dict[str, float | None]:
     if cleaned_df is None or len(cleaned_df) < 5:
         return dict(_EMPTY_METRICS)
     X, y = to_matrix(cleaned_df, target)
     if len(np.unique(y)) < 2:
         return dict(_EMPTY_METRICS)
-    return train_eval(X, y, X_test, y_test, classifier)
+    return train_eval(X, y, X_test, y_test, classifier, seed=seed)
 
 
 def _quality_metrics(train_df, polluted_df, cleaned_dfs, target, error_type, rate) -> dict:
@@ -372,12 +375,12 @@ def run_quality_experiment(df, target, error_type, rate, seed, classifier) -> di
     X_train, y_train = to_matrix(train_df, target)
     X_test, y_test = to_matrix(test_df, target)
 
-    clean_metrics = train_eval(X_train, y_train, X_test, y_test, classifier)
+    clean_metrics = train_eval(X_train, y_train, X_test, y_test, classifier, seed=seed)
 
     polluted_df = PERTURBERS[error_type](train_df, target, rate, seed)
     X_polluted, y_polluted = to_matrix(polluted_df, target)
     # polluted 条件不做规范清洗；缺失值用 0 填充仅为让模型可运行（语义见 metadata note）
-    polluted_metrics = train_eval(X_polluted.fillna(0.0), y_polluted, X_test, y_test, classifier)
+    polluted_metrics = train_eval(X_polluted.fillna(0.0), y_polluted, X_test, y_test, classifier, seed=seed)
 
     strategies = CLEANERS[error_type]
     strategy_results: list[dict] = []
@@ -393,7 +396,7 @@ def run_quality_experiment(df, target, error_type, rate, seed, classifier) -> di
     for idx, (key, label, fn) in enumerate(strategies, start=1):
         cleaned_df = fn(polluted_df, target)
         cleaned_dfs.append(cleaned_df)
-        m = _train_cleaned(cleaned_df, target, X_test, y_test, classifier)
+        m = _train_cleaned(cleaned_df, target, X_test, y_test, classifier, seed=seed)
         cond = f'strategy{idx}'
         strategy_results.append({'key': key, 'label': label, 'condition': cond})
         comparisons.append({'condition': cond, **m})
@@ -416,8 +419,38 @@ def run_quality_experiment(df, target, error_type, rate, seed, classifier) -> di
     }
 
 
+MAX_SEEDS = 10
+
+
+def aggregate_multiseed(runs: list[dict]) -> dict[str, dict]:
+    """把多次种子运行汇总为 {condition: {f1_mean, f1_std, f1_min, f1_max, n}}。"""
+    conditions = [c['condition'] for c in runs[0]['comparisons']]
+    summary: dict[str, dict] = {}
+    for cond in conditions:
+        values = [r['downstream_metrics'].get(f'{cond}_f1') for r in runs]
+        values = [float(v) for v in values if v is not None]
+        if not values:
+            summary[cond] = {
+                'f1_mean': None, 'f1_std': None, 'f1_min': None, 'f1_max': None, 'n': 0,
+            }
+            continue
+        summary[cond] = {
+            'f1_mean': float(np.mean(values)),
+            'f1_std': float(np.std(values)),
+            'f1_min': float(np.min(values)),
+            'f1_max': float(np.max(values)),
+            'n': len(values),
+        }
+    return summary
+
+
 def build_algorithm_run(error_type: str, algorithm_id: str):
-    """工厂：生成符合 AlgorithmResult 合约的 run(inputs, params)。"""
+    """工厂：生成符合 AlgorithmResult 合约的 run(inputs, params)。
+
+    ``params['n_seeds'] > 1`` 时按 ``seed, seed+1, ...`` 连续跑多次，并在
+    ``predictions['multiseed']`` 中返回每个条件的 F1 均值、标准差和有效样本数。
+    顶层 ``comparisons`` 始终是第一个种子的结果，因此 ``n_seeds=1`` 的数值与旧行为一致。
+    """
     def run(inputs: dict, params: dict) -> AlgorithmResult:
         dataset_path = inputs.get('dataset_path')
         if not isinstance(dataset_path, str) or not dataset_path.strip():
@@ -426,9 +459,15 @@ def build_algorithm_run(error_type: str, algorithm_id: str):
         rate = float(params.get('rate', 0.1))
         seed = int(params.get('seed', 0))
         classifier = params.get('classifier', 'logreg')
+        n_seeds = max(1, min(MAX_SEEDS, int(params.get('n_seeds', 1))))
+        seeds = [seed + i for i in range(n_seeds)]
 
         df = load_csv(dataset_path)
-        payload = run_quality_experiment(df, target, error_type, rate, seed, classifier)
+        runs = [
+            run_quality_experiment(df, target, error_type, rate, current_seed, classifier)
+            for current_seed in seeds
+        ]
+        payload = runs[0]
 
         return AlgorithmResult(
             task_type='quality_impact',
@@ -438,9 +477,10 @@ def build_algorithm_run(error_type: str, algorithm_id: str):
                 'downstream_metrics': payload['downstream_metrics'],
                 'comparisons': payload['comparisons'],
                 'strategies': payload['strategies'],
+                'multiseed': aggregate_multiseed(runs),
             },
             metrics=payload['downstream_metrics'],
-            metadata=payload['metadata'],
+            metadata={**payload['metadata'], 'n_seeds': n_seeds, 'seeds': seeds},
         ).validate()
 
     return run
