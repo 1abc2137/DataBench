@@ -113,13 +113,31 @@ def inject_outlier(df: pd.DataFrame, target: str, rate: float, seed: int) -> pd.
 
 
 def inject_duplicate(df: pd.DataFrame, target: str, rate: float, seed: int) -> pd.DataFrame:
-    """随机复制 rate 比例的行（连同标签）追加到末尾。"""
+    """随机复制 rate 比例的行，把所有副本的标签翻转（制造冲突重复），最后打乱顺序。
+
+    与“整行原样复制”不同，冲突标签让清洗不再是简单撤销：
+    污染后的训练集里同一组特征带有两种标签，会明显拉低 F1；
+    删除/聚合/保留最完整会随机保留原件或副本，投票按众数，四种策略因此出现差异。
+    """
     rng = np.random.default_rng(seed)
     n_dup = int(round(len(df) * rate))
     if n_dup <= 0:
         return df.copy()
+
+    labels = pd.to_numeric(df[target], errors='coerce').dropna()
+    classes = sorted(labels.unique().tolist())
+    if len(classes) != 2:
+        raise ValueError('重复记录注入仅支持二分类标签')
+
     idx = rng.integers(0, len(df), size=n_dup)
-    return pd.concat([df, df.iloc[idx]], ignore_index=True)
+    copies = df.iloc[idx].copy()
+    copies[target] = pd.to_numeric(copies[target], errors='coerce').astype(int).map(
+        lambda v: classes[1] if v == classes[0] else classes[0]
+    ).to_numpy()
+
+    merged = pd.concat([df, copies], ignore_index=True)
+    order = rng.permutation(len(merged))
+    return merged.iloc[order].reset_index(drop=True)
 
 
 PERTURBERS = {
