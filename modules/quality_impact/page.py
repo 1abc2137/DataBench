@@ -27,6 +27,11 @@ BUILTIN_DATASETS = {
         'path': ROOT / 'datasets/samples/adult.csv',
         'dataset_id': 'adult_v1',
     },
+    'restaurant': {
+        'label': 'Restaurant（CleanML 真实脏数据）',
+        'path': ROOT / 'datasets/samples/restaurant.csv',
+        'dataset_id': 'restaurant_v1',
+    },
 }
 
 CONDITION_ORDER = ['clean', 'polluted', 'strategy1', 'strategy2', 'strategy3', 'strategy4']

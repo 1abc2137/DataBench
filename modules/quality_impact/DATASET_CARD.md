@@ -73,6 +73,29 @@
 - 标签定义：0=收入 ≤50K、1=收入 >50K（由 `income` 映射）。
 - 预处理：跳过 `?` 缺失行、去首尾空白、`income` 映射为 0/1，原始 32,561 行 → 30,162 行。
 
+## restaurant.csv（CleanML Restaurant 真实脏数据）
+
+- 数据集名称：Restaurant（餐厅记录，含重复记录与不一致）
+- 本地版本号：`restaurant_v1`
+- 对应模块：`quality_impact`
+- 获取或生成日期：2026-11-20
+- 维护人：第 3 组 quality_impact
+
+- 原始来源：CleanML 基准数据集（Chu et al., CleanML, ICDE 2021）中的 `Restaurant` 数据集。
+- 下载链接或生成脚本：CleanML 仓库 README 提供的 `CleanML-datasets-2020.zip`（Dropbox 分享链接）；本文件由 `Restaurant/raw/raw.csv` 转换得到。
+- 许可证或使用条款：随 CleanML 公开用于研究，可教学使用。
+- 是否允许重新分发：允许（0.74 MB，已提交仓库）。
+
+| 文件 | 角色 | 行数 | 列数 | 大小 | 主键 |
+| --- | --- | ---: | ---: | ---: | --- |
+| `restaurant.csv` | 真实脏数据（含重复） | 12,007 | 7 | 0.74 MB | `telephone`（论文定义的去重键） |
+
+- 字段：`city`、`state`、`zipCode`、`telephone`、`ratingValue`、`neighborhood`，加 `label`。
+- 标签定义：`label` 由原 `priceRange` 映射而来，**0 = 低价档、1 = 高价档**（原始取值即为 0/1，分布 4,481 / 7,526）。
+- 预处理：删除 `name`、`streetAddress`、`website`、`categories` 四个文本列（高基数或与本组分类任务无关），`priceRange` 重命名为 `label`。
+- 重复情况：按 `telephone` 有 1,359 条重复，**整行完全相同者为 0**——即属于“同一实体、字段有差异”的真实重复，需要用键碰撞而非整行比对来检测。
+- 缺失情况：转换后无缺失值；原表的缺失/不一致错误未保留，本数据集在本模块中只用于**重复记录**实验。
+
 ## 通用说明
 
 - 加载后由 `core.datasets.load_csv` 统一注入 `__row_id`，模型与页面均不使用该列。
