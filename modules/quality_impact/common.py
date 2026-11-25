@@ -10,6 +10,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
@@ -333,6 +336,44 @@ def keep_most_complete(df: pd.DataFrame, target: str) -> pd.DataFrame:
     )
 
 
+_DITTO_GROUPS = None
+_DITTO_GROUPS_PATH = Path(__file__).with_name('ditto') / 'groups.json'
+_DITTO_MAX_ROWS = 12007  # CleanML Restaurant 的行数，用于判断数据是否匹配
+
+
+def _load_ditto_groups() -> list[list[int]]:
+    global _DITTO_GROUPS
+    if _DITTO_GROUPS is None:
+        with _DITTO_GROUPS_PATH.open(encoding='utf-8') as fh:
+            _DITTO_GROUPS = json.load(fh)
+    return _DITTO_GROUPS
+
+
+def ditto_dedup(df: pd.DataFrame, target: str) -> pd.DataFrame:
+    """按 Ditto 预测出的重复组去重：每组保留第一条出现的行。
+
+    该组文件由 ``modules/quality_impact/ditto`` 下的 Ditto 实验离线生成，
+    行号对应 CleanML Restaurant 数据。若当前数据不是 Restaurant（行号越界），
+    则原样返回，避免在其它数据集上误删。
+    """
+    groups = _load_ditto_groups()
+    ids = pd.to_numeric(df['__row_id'], errors='coerce')
+    if ids.isna().any() or ids.max() >= _DITTO_MAX_ROWS:
+        return df
+
+    present = set(ids.astype(int))
+    drop: set[int] = set()
+    for group in groups:
+        members = [i for i in group if i in present]
+        if len(members) > 1:
+            drop.update(members[1:])
+
+    cleaned = df[~ids.astype(int).isin(drop)] if drop else df
+    # 注入的副本与原件特征完全相同且共用 __row_id，按行号无法区分，
+    # 因此再按特征做一次完全重复删除，把副本一并清掉。
+    return drop_duplicate_rows(cleaned, target)
+
+
 CLEANERS = {
     'missing': [
         ('drop_rows', '删除缺失行', drop_missing_rows),
@@ -349,7 +390,7 @@ CLEANERS = {
     'duplicate': [
         ('drop_duplicates', '删除重复记录', drop_duplicate_rows),
         ('aggregate', '重复记录聚合', aggregate_duplicates),
-        ('vote_aggregate', '聚合+一致性投票', vote_aggregate_duplicates),
+        ('ditto_dedup', 'Ditto匹配+删除', ditto_dedup),
         ('keep_complete', '保留最完整记录', keep_most_complete),
     ],
 }
