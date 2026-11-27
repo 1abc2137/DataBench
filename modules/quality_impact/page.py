@@ -32,6 +32,16 @@ BUILTIN_DATASETS = {
         'path': ROOT / 'datasets/samples/restaurant.csv',
         'dataset_id': 'restaurant_v1',
     },
+    'airbnb': {
+        'label': 'Airbnb（CleanML）',
+        'path': ROOT / 'datasets/samples/airbnb.csv',
+        'dataset_id': 'airbnb_v1',
+    },
+    'movie': {
+        'label': 'Movie（CleanML）',
+        'path': ROOT / 'datasets/samples/movie.csv',
+        'dataset_id': 'movie_v1',
+    },
 }
 
 CONDITION_ORDER = ['clean', 'polluted', 'strategy1', 'strategy2', 'strategy3', 'strategy4']

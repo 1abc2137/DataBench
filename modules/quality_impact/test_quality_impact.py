@@ -290,3 +290,11 @@ def test_multiseed_mean_matches_manual_runs():
 def test_n_seeds_is_capped():
     result = _run_missing({'n_seeds': 99})
     assert result.metadata['n_seeds'] == 10
+
+
+def test_ditto_dedup_skips_other_dataset():
+    """Ditto 重复组只对 Restaurant 有效，其它数据必须原样返回。"""
+    from modules.quality_impact.common import ditto_dedup
+
+    df = _demo_df()
+    assert len(ditto_dedup(df, 'label')) == len(df)
